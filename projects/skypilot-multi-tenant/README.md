@@ -41,7 +41,7 @@ flowchart LR
     Cognito[AWS Cognito]:::aws
 
     subgraph HubVPC ["Hub VPC (Region X)"]
-        direction LR
+        direction TB
 
         subgraph HubEKS [EKS Cluster 1]
             direction TB
@@ -56,61 +56,52 @@ flowchart LR
             end
 
             Tailscale --> API
-            API -.-> WA
-            API -.-> WB
+            API -.-> HubWorkspaces
         end
     end
 
-    subgraph SpokeRegion [ ]
+    subgraph Spoke1 ["Spoke VPC (Region Y)"]
         direction TB
-        style SpokeRegion fill:none,stroke:none;
-
-        subgraph Spoke1 ["Spoke VPC (Region Z)"]
-            direction TB
-            subgraph EKS2 [EKS Cluster 2]
-                direction TB
-                WC[Workspace C]:::node
-                WD[Workspace D]:::node
-            end
+        subgraph EKS2 [EKS Cluster 2]
+            direction LR
+            WC[Workspace C]:::node
+            WD[Workspace D]:::node
         end
+    end
 
-        subgraph Spoke2 ["Spoke VPC (Region Y)"]
-            direction TB
-            subgraph EKS3 [EKS Cluster 3]
-                direction TB
-                WE[Workspace E]:::node
-                WF[Workspace F]:::node
-            end
+    subgraph Spoke2 ["Spoke VPC (Region Z)"]
+        direction TB
+        subgraph EKS3 [EKS Cluster 3]
+            direction LR
+            WE[Workspace E]:::node
+            WF[Workspace F]:::node
         end
     end
 
     User -.->|Auth| Cognito
     User ==>|VPN| Tailscale
 
-    API -.-> WC
-    API -.-> WD
-    API -.-> WE
-    API -.-> WF
+    API -.->|Orchestrate| EKS2
+    API -.->|Orchestrate| EKS3
 
-    HubVPC <-->|VPC Peering| Spoke1
-    HubVPC <-->|VPC Peering| Spoke2
+    HubVPC <==>|VPC Peering| Spoke1
+    HubVPC <==>|VPC Peering| Spoke2
 
     class HubVPC hub;
     class Spoke1,Spoke2 spoke;
 
     %% Edge overrides (order matters)
     %% 0: Tailscale --> API
-    %% 1: API -.-> WA
-    %% 2: API -.-> WB
-    %% 3: User -.-> Cognito
-    %% 4: User ==> Tailscale
-    %% 5-8: API -.-> WC/WD/WE/WF
-    %% 9-10: HubVPC <--> Spoke1/Spoke2
+    %% 1: API -.-> HubWorkspaces
+    %% 2: User -.-> Cognito
+    %% 3: User ==> Tailscale
+    %% 4-5: API -.-> EKS2/EKS3 (cross-region orchestration)
+    %% 6-7: HubVPC <==> Spoke1/Spoke2 (VPC peering)
     linkStyle 0 stroke:#059669,stroke-width:2.5px;
-    linkStyle 1,2,5,6,7,8 stroke:#64748b,stroke-width:2px,stroke-dasharray:5 4;
-    linkStyle 3 stroke:#f59e0b,stroke-width:2px,stroke-dasharray:6 4;
-    linkStyle 4 stroke:#16a34a,stroke-width:3.5px;
-    linkStyle 9,10 stroke:#6366f1,stroke-width:3.5px;
+    linkStyle 1,4,5 stroke:#64748b,stroke-width:2px,stroke-dasharray:5 4;
+    linkStyle 2 stroke:#f59e0b,stroke-width:2px,stroke-dasharray:6 4;
+    linkStyle 3 stroke:#16a34a,stroke-width:3.5px;
+    linkStyle 6,7 stroke:#6366f1,stroke-width:3.5px;
 ```
 
 ## How it works
