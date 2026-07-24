@@ -41,16 +41,16 @@ flowchart LR
     Cognito[AWS Cognito]:::aws
 
     subgraph HubVPC ["Hub VPC (Region X)"]
-        direction TB
+        direction LR
 
         subgraph HubEKS [EKS Cluster 1]
-            direction TB
+            direction LR
 
             Tailscale[Tailscale Subnet Router]:::vpn
             API[SkyPilot API Server]:::api
 
             subgraph HubWorkspaces [Workspaces]
-                direction LR
+                direction TB
                 WA[Workspace A]:::node
                 WB[Workspace B]:::node
             end
@@ -87,6 +87,12 @@ flowchart LR
     HubVPC <==>|VPC Peering| Spoke1
     HubVPC <==>|VPC Peering| Spoke2
 
+    %% invisible link: lay the two spoke VPCs out side by side (horizontal row)
+    EKS2 ~~~ EKS3
+
+    %% invisible link: stack the hub workspaces vertically
+    WA ~~~ WB
+
     class HubVPC hub;
     class Spoke1,Spoke2 spoke;
 
@@ -97,6 +103,7 @@ flowchart LR
     %% 3: User ==> Tailscale
     %% 4-5: API -.-> EKS2/EKS3 (cross-region orchestration)
     %% 6-7: HubVPC <==> Spoke1/Spoke2 (VPC peering)
+    %% 8-9: EKS2 ~~~ EKS3, WA ~~~ WB (invisible layout links, left unstyled)
     linkStyle 0 stroke:#059669,stroke-width:2.5px;
     linkStyle 1,4,5 stroke:#64748b,stroke-width:2px,stroke-dasharray:5 4;
     linkStyle 2 stroke:#f59e0b,stroke-width:2px,stroke-dasharray:6 4;
