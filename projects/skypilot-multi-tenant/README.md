@@ -41,16 +41,16 @@ flowchart LR
     Cognito[AWS Cognito]:::aws
 
     subgraph HubVPC ["Hub VPC (Region X)"]
-        direction TB
+        direction LR
 
         subgraph HubEKS [EKS Cluster 1]
-            direction TB
+            direction LR
 
             Tailscale[Tailscale Subnet Router]:::vpn
             API[SkyPilot API Server]:::api
 
             subgraph HubWorkspaces [Workspaces]
-                direction LR
+                direction TB
                 WA[Workspace A]:::node
                 WB[Workspace B]:::node
             end
