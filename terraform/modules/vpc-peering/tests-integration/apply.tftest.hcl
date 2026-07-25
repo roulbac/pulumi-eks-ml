@@ -24,7 +24,8 @@ run "vpc_us_east_1" {
   command = apply
 
   module {
-    source = "../../vpc"
+    # Relative to the module root being tested, not to this test file.
+    source = "../vpc"
   }
 
   variables {
@@ -40,7 +41,8 @@ run "vpc_us_west_2" {
   command = apply
 
   module {
-    source = "../../vpc"
+    # Relative to the module root being tested, not to this test file.
+    source = "../vpc"
   }
 
   variables {
@@ -56,7 +58,8 @@ run "vpc_eu_west_1" {
   command = apply
 
   module {
-    source = "../../vpc"
+    # Relative to the module root being tested, not to this test file.
+    source = "../vpc"
   }
 
   variables {
