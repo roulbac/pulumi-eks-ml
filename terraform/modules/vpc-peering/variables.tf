@@ -55,6 +55,20 @@ variable "hub" {
   }
 }
 
+variable "enable_remote_dns_resolution" {
+  description = <<-EOT
+    Resolve the peer VPC's private DNS names across the connection, on both the
+    requester and accepter sides. Matches the Pulumi behaviour and should stay
+    on against real AWS.
+
+    Turn it off when running against a local AWS emulator: both MiniStack and
+    LocalStack lack the ModifyVpcPeeringConnectionOptions EC2 action, so the
+    connections and routes apply cleanly but setting these options fails.
+  EOT
+  type        = bool
+  default     = true
+}
+
 variable "tags" {
   description = "Tags applied to peering resources."
   type        = map(string)

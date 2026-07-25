@@ -78,6 +78,12 @@ run "hub_and_spoke_mesh" {
     topology = "hub_and_spoke"
     hub      = "us-east-1"
 
+    # MiniStack's EC2 emulation has no ModifyVpcPeeringConnectionOptions
+    # action. The connections and routes below still apply for real; only the
+    # cross-VPC DNS option is unavailable, so it is disabled here. Production
+    # callers leave it at its default of true.
+    enable_remote_dns_resolution = false
+
     vpcs = {
       "us-east-1" = {
         vpc_id                 = run.vpc_us_east_1.vpc_id

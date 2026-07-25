@@ -63,8 +63,12 @@ resource "aws_vpc_peering_connection_accepter" "this" {
   vpc_peering_connection_id = aws_vpc_peering_connection.this[each.key].id
   auto_accept               = true
 
-  accepter {
-    allow_remote_vpc_dns_resolution = true
+  dynamic "accepter" {
+    for_each = var.enable_remote_dns_resolution ? [1] : []
+
+    content {
+      allow_remote_vpc_dns_resolution = true
+    }
   }
 
   tags = merge(var.tags, { Name = "${var.name}-accepter-${each.key}" })
@@ -73,7 +77,7 @@ resource "aws_vpc_peering_connection_accepter" "this" {
 # Requester-side DNS resolution. Split out because the requester options can
 # only be set once the connection is active.
 resource "aws_vpc_peering_connection_options" "requester" {
-  for_each = local.pairs
+  for_each = var.enable_remote_dns_resolution ? local.pairs : {}
 
   region = each.value.region_a
 
