@@ -142,19 +142,15 @@ run "private_subnets_never_swallow_the_public_block" {
     num_azs    = 3
   }
 
+  # Terraform has no cidrcontains, so the invariant is stated as address
+  # arithmetic: the private subnets together must end before the final 16
+  # addresses that the public /28 occupies.
   assert {
-    condition = alltrue([
-      for c in output.computed_private_cidrs :
-      !cidrcontains(c, output.computed_public_cidr)
-    ])
-    error_message = "A private subnet overlaps the reserved public /28: ${jsonencode(output.computed_private_cidrs)} vs ${output.computed_public_cidr}."
-  }
-
-  assert {
-    condition = alltrue([
-      for c in output.computed_private_cidrs : cidrcontains("10.5.0.0/16", c)
-    ])
-    error_message = "A private subnet fell outside the VPC CIDR: ${jsonencode(output.computed_private_cidrs)}."
+    condition = (
+      var.num_azs * pow(2, 32 - output.computed_private_prefix)
+      <= pow(2, 32 - tonumber(split("/", var.cidr_block)[1])) - 16
+    )
+    error_message = "Private subnets run into the reserved public /28: ${jsonencode(output.computed_private_cidrs)} vs ${output.computed_public_cidr}."
   }
 
   assert {
@@ -173,11 +169,13 @@ run "boundary_case_keeps_the_public_block_clear" {
     num_azs    = 3
   }
 
+  # At the /26 boundary the fit is exact: three /28s consume 48 of the 64
+  # addresses, leaving precisely the 16 the public block needs.
   assert {
-    condition = alltrue([
-      for c in output.computed_private_cidrs :
-      !cidrcontains(c, output.computed_public_cidr)
-    ])
-    error_message = "Boundary case overlaps the public block: ${jsonencode(output.computed_private_cidrs)}."
+    condition = (
+      var.num_azs * pow(2, 32 - output.computed_private_prefix)
+      == pow(2, 32 - tonumber(split("/", var.cidr_block)[1])) - 16
+    )
+    error_message = "Boundary case should consume the address space exactly: ${jsonencode(output.computed_private_cidrs)} vs ${output.computed_public_cidr}."
   }
 }

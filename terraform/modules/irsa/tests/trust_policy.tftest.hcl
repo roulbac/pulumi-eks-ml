@@ -7,6 +7,17 @@
 
 mock_provider "aws" {}
 
+# A mocked data source returns a placeholder string for `json`, which
+# aws_iam_role rejects before any assertion runs. Supplying a syntactically
+# valid document lets the plan complete; the real document is exercised in
+# tests-integration/.
+override_data {
+  target = data.aws_iam_policy_document.assume_role
+  values = {
+    json = "{\"Version\":\"2012-10-17\",\"Statement\":[]}"
+  }
+}
+
 variables {
   oidc_provider_arn = "arn:aws:iam::123456789012:oidc-provider/oidc.eks.us-west-2.amazonaws.com/id/EXAMPLE"
   oidc_issuer       = "oidc.eks.us-west-2.amazonaws.com/id/EXAMPLE"

@@ -9,10 +9,13 @@ locals {
     for r in local.regions : [var.hub, r] if r != var.hub
   ]
 
-  mesh_pairs = [
-    for pair in setproduct(local.regions, local.regions) : pair
-    if pair[0] < pair[1]
-  ]
+  # Compared by index rather than by value: HCL's < is numeric only, and
+  # local.regions is already sorted, so index order is alphabetical order.
+  mesh_pairs = flatten([
+    for i, a in local.regions : [
+      for j, b in local.regions : [a, b] if j > i
+    ]
+  ])
 
   # tolist() on both branches is load-bearing: a bare ternary between two tuple
   # literals requires matching tuple *lengths*, which these never have.

@@ -1,6 +1,5 @@
-data "aws_caller_identity" "current" {
-  region = var.region
-}
+# Account identity is global, so this data source takes no region.
+data "aws_caller_identity" "current" {}
 
 data "aws_region" "current" {
   region = var.region
