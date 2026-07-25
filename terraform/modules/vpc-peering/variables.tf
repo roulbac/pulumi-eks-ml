@@ -1,0 +1,62 @@
+variable "name" {
+  description = "Name prefix applied to peering resources."
+  type        = string
+}
+
+variable "vpcs" {
+  description = <<-EOT
+    VPCs to peer, keyed by region. Each value carries the attributes the mesh
+    needs: the VPC id, its CIDR (used as the route destination from the other
+    side) and the private route table that peering routes attach to.
+  EOT
+  type = map(object({
+    vpc_id                 = string
+    vpc_cidr_block         = string
+    private_route_table_id = string
+  }))
+
+  validation {
+    condition     = length(var.vpcs) >= 2
+    error_message = "At least two VPCs are required to build a peering mesh."
+  }
+}
+
+variable "topology" {
+  description = <<-EOT
+    "full_mesh" peers every region with every other region.
+    "hub_and_spoke" peers only the hub with each spoke — no spoke-to-spoke path.
+  EOT
+  type        = string
+
+  validation {
+    condition     = contains(["full_mesh", "hub_and_spoke"], var.topology)
+    error_message = "topology must be either \"full_mesh\" or \"hub_and_spoke\"."
+  }
+}
+
+variable "hub" {
+  description = "Hub region. Required for hub_and_spoke, must be null for full_mesh."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = !(var.topology == "hub_and_spoke" && var.hub == null)
+    error_message = "The hub_and_spoke topology requires a hub region."
+  }
+
+  validation {
+    condition     = !(var.topology == "full_mesh" && var.hub != null)
+    error_message = "The full_mesh topology must not be given a hub region."
+  }
+
+  validation {
+    condition     = var.hub == null || contains(keys(var.vpcs), coalesce(var.hub, "_"))
+    error_message = "The hub region must be present in the vpcs map."
+  }
+}
+
+variable "tags" {
+  description = "Tags applied to peering resources."
+  type        = map(string)
+  default     = {}
+}

@@ -1,0 +1,165 @@
+name: Terraform
+
+on:
+  push:
+    branches: ["main", "claude/**"]
+    paths:
+      - "terraform/**"
+      - ".github/workflows/terraform.yml"
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "terraform/**"
+      - ".github/workflows/terraform.yml"
+  workflow_dispatch:
+
+env:
+  TF_VERSION: "1.13.1"
+  TF_IN_AUTOMATION: "1"
+  TF_INPUT: "0"
+
+jobs:
+  # Discovers modules so the matrices below stay correct as modules are added.
+  discover:
+    name: Discover modules
+    runs-on: ubuntu-latest
+    outputs:
+      modules: ${{ steps.find.outputs.modules }}
+      unit: ${{ steps.find.outputs.unit }}
+      integration: ${{ steps.find.outputs.integration }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Find modules and test suites
+        id: find
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Any directory holding a versions.tf is a module or root config.
+          modules=$(find terraform -name versions.tf -not -path '*/.terraform/*' \
+            -printf '%h\n' | sort -u | jq -R . | jq -sc .)
+          # Modules carrying offline unit tests.
+          unit=$(find terraform -type d -name tests -not -path '*/.terraform/*' \
+            -printf '%h\n' | sort -u | jq -R . | jq -sc .)
+          # Modules carrying MiniStack integration tests.
+          integration=$(find terraform -type d -name tests-integration -not -path '*/.terraform/*' \
+            -printf '%h\n' | sort -u | jq -R . | jq -sc .)
+
+          echo "modules=$modules" >> "$GITHUB_OUTPUT"
+          echo "unit=$unit" >> "$GITHUB_OUTPUT"
+          echo "integration=$integration" >> "$GITHUB_OUTPUT"
+
+          echo "### Discovered" >> "$GITHUB_STEP_SUMMARY"
+          echo "- modules: $(echo "$modules" | jq length)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- unit suites: $(echo "$unit" | jq length)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- integration suites: $(echo "$integration" | jq length)" >> "$GITHUB_STEP_SUMMARY"
+
+  fmt:
+    name: fmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: terraform fmt
+        run: terraform fmt -check -recursive -diff terraform/
+
+  validate:
+    name: validate (${{ matrix.module }})
+    needs: discover
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module: ${{ fromJSON(needs.discover.outputs.modules) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: terraform init
+        working-directory: ${{ matrix.module }}
+        run: terraform init -backend=false -no-color
+
+      - name: terraform validate
+        working-directory: ${{ matrix.module }}
+        run: terraform validate -no-color
+
+  # Offline tests: mocked providers, no credentials, no emulator.
+  unit:
+    name: unit (${{ matrix.module }})
+    needs: discover
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module: ${{ fromJSON(needs.discover.outputs.unit) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: terraform init
+        working-directory: ${{ matrix.module }}
+        run: terraform init -backend=false -no-color
+
+      - name: terraform test
+        working-directory: ${{ matrix.module }}
+        run: terraform test -no-color -verbose
+
+  # Real applies against MiniStack, an MIT-licensed local AWS emulator.
+  # Chosen over LocalStack because the services this project leans on — EKS,
+  # EFS, Route53, Cognito — are not in LocalStack's free tier.
+  integration:
+    name: integration (${{ matrix.module }})
+    needs: [discover, unit]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module: ${{ fromJSON(needs.discover.outputs.integration) }}
+    env:
+      AWS_ENDPOINT_URL: http://localhost:4566
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_REGION: us-east-1
+      AWS_DEFAULT_REGION: us-east-1
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: Start MiniStack
+        run: terraform/test/ministack.sh up
+
+      - name: Report emulator version
+        run: curl -fsS "$AWS_ENDPOINT_URL/_ministack/health" || true
+
+      - name: terraform init
+        working-directory: ${{ matrix.module }}
+        run: terraform init -backend=false -no-color
+
+      - name: terraform test (integration)
+        working-directory: ${{ matrix.module }}
+        run: terraform test -test-directory=tests-integration -no-color -verbose
+
+      - name: MiniStack logs on failure
+        if: failure()
+        run: docker logs ministack-tf-tests 2>&1 | tail -200
+
+      - name: Stop MiniStack
+        if: always()
+        run: terraform/test/ministack.sh down
