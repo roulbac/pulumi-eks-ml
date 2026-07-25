@@ -86,9 +86,11 @@ run "pair_ordering_is_alphabetical" {
     hub      = null
   }
 
+  # sort() rather than <, which HCL only defines for numbers.
   assert {
     condition = alltrue([
-      for p in values(output.peered_region_pairs) : p.region_a < p.region_b
+      for p in values(output.peered_region_pairs) :
+      p.region_a == sort([p.region_a, p.region_b])[0]
     ])
     error_message = "Each pair must be stored with region_a alphabetically before region_b."
   }
