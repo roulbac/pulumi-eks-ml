@@ -4,6 +4,10 @@ locals {
   issuer = replace(var.oidc_issuer, "https://", "")
 
   subject = "system:serviceaccount:${var.trust_sa_namespace}:${var.trust_sa_name}"
+
+  # A wildcard service-account name needs StringLike; an exact name gets the
+  # stricter StringEquals.
+  subject_condition_test = strcontains(var.trust_sa_name, "*") ? "StringLike" : "StringEquals"
 }
 
 data "aws_iam_policy_document" "assume_role" {
@@ -16,10 +20,8 @@ data "aws_iam_policy_document" "assume_role" {
       identifiers = [var.oidc_provider_arn]
     }
 
-    # A wildcard service-account name needs StringLike; an exact name gets the
-    # stricter StringEquals.
     condition {
-      test     = strcontains(var.trust_sa_name, "*") ? "StringLike" : "StringEquals"
+      test     = local.subject_condition_test
       variable = "${local.issuer}:sub"
       values   = [local.subject]
     }

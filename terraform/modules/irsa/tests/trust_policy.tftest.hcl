@@ -1,5 +1,9 @@
-# Guards the IRSA trust policy, including the sub/aud condition collision that
-# the Python implementation still carries. Plan-only, runs offline.
+# Offline checks on the values that feed the trust policy.
+#
+# The policy JSON itself is rendered by the AWS provider, so under a mocked
+# provider it is a placeholder rather than a real document. The assertions on
+# the rendered JSON — including the sub/aud regression — live in
+# tests-integration/, which runs against MiniStack with a real provider.
 
 mock_provider "aws" {}
 
@@ -8,7 +12,7 @@ variables {
   oidc_issuer       = "oidc.eks.us-west-2.amazonaws.com/id/EXAMPLE"
 }
 
-run "exact_service_account_restricts_both_sub_and_aud" {
+run "exact_service_account_uses_string_equals" {
   command = plan
 
   variables {
@@ -17,29 +21,14 @@ run "exact_service_account_restricts_both_sub_and_aud" {
     trust_sa_name      = "efs-csi-controller-sa"
   }
 
-  # The regression this exists for: the subject condition must survive
-  # alongside the audience condition.
   assert {
-    condition = strcontains(
-      output.assume_role_policy_json,
-      "system:serviceaccount:kube-system:efs-csi-controller-sa"
-    )
-    error_message = "Trust policy lost its :sub restriction — the role would be assumable by any service account in the cluster."
+    condition     = output.subject_condition_test == "StringEquals"
+    error_message = "An exact service-account name must use StringEquals, got ${output.subject_condition_test}."
   }
 
   assert {
-    condition     = strcontains(output.assume_role_policy_json, "sts.amazonaws.com")
-    error_message = "Trust policy is missing the :aud restriction."
-  }
-
-  assert {
-    condition     = strcontains(output.assume_role_policy_json, "StringEquals")
-    error_message = "An exact service-account name must use StringEquals."
-  }
-
-  assert {
-    condition     = !strcontains(output.assume_role_policy_json, "StringLike")
-    error_message = "An exact service-account name must not use StringLike."
+    condition     = output.trust_subject == "system:serviceaccount:kube-system:efs-csi-controller-sa"
+    error_message = "Unexpected trust subject: ${output.trust_subject}."
   }
 }
 
@@ -53,21 +42,33 @@ run "wildcard_service_account_uses_string_like" {
   }
 
   assert {
-    condition     = strcontains(output.assume_role_policy_json, "StringLike")
-    error_message = "A wildcard service-account name must use StringLike for the :sub condition."
+    condition     = output.subject_condition_test == "StringLike"
+    error_message = "A wildcard service-account name must use StringLike, got ${output.subject_condition_test}."
   }
 
   assert {
-    condition     = strcontains(output.assume_role_policy_json, "system:serviceaccount:skypilot:*")
-    error_message = "Wildcard subject was not rendered correctly."
-  }
-
-  assert {
-    condition     = strcontains(output.assume_role_policy_json, "sts.amazonaws.com")
-    error_message = "Trust policy is missing the :aud restriction."
+    condition     = output.trust_subject == "system:serviceaccount:skypilot:*"
+    error_message = "Unexpected wildcard subject: ${output.trust_subject}."
   }
 }
 
+run "partial_wildcard_also_uses_string_like" {
+  command = plan
+
+  variables {
+    role_name          = "test-partial-wildcard"
+    trust_sa_namespace = "kube-system"
+    trust_sa_name      = "external-dns*"
+  }
+
+  assert {
+    condition     = output.subject_condition_test == "StringLike"
+    error_message = "A partially wildcarded name must use StringLike, got ${output.subject_condition_test}."
+  }
+}
+
+# aws_eks_cluster reports the issuer with a scheme; IAM condition keys must not
+# carry one.
 run "issuer_url_scheme_is_stripped" {
   command = plan
 
@@ -78,15 +79,23 @@ run "issuer_url_scheme_is_stripped" {
     trust_sa_name      = "karpenter"
   }
 
-  # aws_eks_cluster reports the issuer with a scheme; IAM condition keys must
-  # not carry one.
   assert {
-    condition     = !strcontains(output.assume_role_policy_json, "https://oidc.eks")
-    error_message = "Condition keys must use the bare issuer host+path, not the full URL."
+    condition     = output.normalized_issuer == "oidc.eks.us-west-2.amazonaws.com/id/EXAMPLE"
+    error_message = "Issuer scheme was not stripped: ${output.normalized_issuer}."
+  }
+}
+
+run "bare_issuer_is_left_alone" {
+  command = plan
+
+  variables {
+    role_name          = "test-bare"
+    trust_sa_namespace = "karpenter"
+    trust_sa_name      = "karpenter"
   }
 
   assert {
-    condition     = strcontains(output.assume_role_policy_json, "oidc.eks.us-west-2.amazonaws.com/id/EXAMPLE:sub")
-    error_message = "Subject condition key was not built from the stripped issuer."
+    condition     = output.normalized_issuer == "oidc.eks.us-west-2.amazonaws.com/id/EXAMPLE"
+    error_message = "A bare issuer should pass through unchanged: ${output.normalized_issuer}."
   }
 }

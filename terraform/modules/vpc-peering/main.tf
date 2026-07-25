@@ -5,13 +5,18 @@ locals {
   # sorting each pair alphabetically keeps resource keys stable so switching
   # topology only adds or removes the difference rather than churning every
   # connection.
-  raw_pairs = var.topology == "hub_and_spoke" ? [
+  hub_pairs = [
     for r in local.regions : [var.hub, r] if r != var.hub
-    ] : flatten([
-      for i, a in local.regions : [
-        for j, b in local.regions : [a, b] if j > i
-      ]
-  ])
+  ]
+
+  mesh_pairs = [
+    for pair in setproduct(local.regions, local.regions) : pair
+    if pair[0] < pair[1]
+  ]
+
+  # tolist() on both branches is load-bearing: a bare ternary between two tuple
+  # literals requires matching tuple *lengths*, which these never have.
+  raw_pairs = var.topology == "hub_and_spoke" ? tolist(local.hub_pairs) : tolist(local.mesh_pairs)
 
   pairs = {
     for p in local.raw_pairs :

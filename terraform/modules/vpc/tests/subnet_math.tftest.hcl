@@ -132,8 +132,9 @@ run "smallest_viable_cidr" {
   }
 }
 
-# Subnets must tile the front of the space without gaps or overlaps.
-run "private_subnets_are_contiguous_and_disjoint" {
+# The invariant vpc/utils.py enforces with an explicit overlap check: private
+# subnets live inside the VPC and never swallow the reserved public /28.
+run "private_subnets_never_swallow_the_public_block" {
   command = plan
 
   variables {
@@ -143,17 +144,40 @@ run "private_subnets_are_contiguous_and_disjoint" {
 
   assert {
     condition = alltrue([
-      for i in range(length(output.computed_private_cidrs) - 1) :
-      cidrhost(output.computed_private_cidrs[i + 1], 0) == cidrhost(
-        output.computed_private_cidrs[i],
-        pow(2, 32 - tonumber(split("/", output.computed_private_cidrs[i])[1]))
-      )
+      for c in output.computed_private_cidrs :
+      !cidrcontains(c, output.computed_public_cidr)
     ])
-    error_message = "Private subnets are not contiguous: ${jsonencode(output.computed_private_cidrs)}."
+    error_message = "A private subnet overlaps the reserved public /28: ${jsonencode(output.computed_private_cidrs)} vs ${output.computed_public_cidr}."
+  }
+
+  assert {
+    condition = alltrue([
+      for c in output.computed_private_cidrs : cidrcontains("10.5.0.0/16", c)
+    ])
+    error_message = "A private subnet fell outside the VPC CIDR: ${jsonencode(output.computed_private_cidrs)}."
   }
 
   assert {
     condition     = length(distinct(output.computed_private_cidrs)) == length(output.computed_private_cidrs)
-    error_message = "Private subnets overlap: ${jsonencode(output.computed_private_cidrs)}."
+    error_message = "Private subnets overlap each other: ${jsonencode(output.computed_private_cidrs)}."
+  }
+}
+
+# Same invariant at the tightest CIDR, where the public block sits immediately
+# after the last private subnet.
+run "boundary_case_keeps_the_public_block_clear" {
+  command = plan
+
+  variables {
+    cidr_block = "10.0.0.0/26"
+    num_azs    = 3
+  }
+
+  assert {
+    condition = alltrue([
+      for c in output.computed_private_cidrs :
+      !cidrcontains(c, output.computed_public_cidr)
+    ])
+    error_message = "Boundary case overlaps the public block: ${jsonencode(output.computed_private_cidrs)}."
   }
 }
