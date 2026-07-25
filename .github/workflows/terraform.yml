@@ -148,9 +148,11 @@ jobs:
       - name: Report emulator version
         run: curl -fsS "$AWS_ENDPOINT_URL/_ministack/health" || true
 
+      # -test-directory must match the test run below: init only installs the
+      # helper modules referenced by `module {}` blocks in that directory.
       - name: terraform init
         working-directory: ${{ matrix.module }}
-        run: terraform init -backend=false -no-color
+        run: terraform init -backend=false -test-directory=tests-integration -no-color
 
       - name: terraform test (integration)
         working-directory: ${{ matrix.module }}
