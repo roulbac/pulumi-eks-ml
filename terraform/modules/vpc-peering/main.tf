@@ -5,21 +5,22 @@ locals {
   # sorting each pair alphabetically keeps resource keys stable so switching
   # topology only adds or removes the difference rather than churning every
   # connection.
-  hub_pairs = [
-    for r in local.regions : [var.hub, r] if r != var.hub
-  ]
-
-  # Compared by index rather than by value: HCL's < is numeric only, and
-  # local.regions is already sorted, so index order is alphabetical order.
-  mesh_pairs = flatten([
-    for i, a in local.regions : [
-      for j, b in local.regions : [a, b] if j > i
-    ]
+  # Both branches are coerced to list(list(string)). The inner tolist matters
+  # because a for-expression yields a *tuple*, and a ternary between two tuples
+  # demands equal lengths — which these never have. flatten() is not an option
+  # either: it recurses, collapsing the pairs into a flat list of strings.
+  hub_pairs = tolist([
+    for r in local.regions : tolist([var.hub, r]) if r != var.hub
   ])
 
-  # tolist() on both branches is load-bearing: a bare ternary between two tuple
-  # literals requires matching tuple *lengths*, which these never have.
-  raw_pairs = var.topology == "hub_and_spoke" ? tolist(local.hub_pairs) : tolist(local.mesh_pairs)
+  # Compared by index rather than by value, since HCL's < is numeric only.
+  # local.regions is sorted, so index order is alphabetical order.
+  mesh_pairs = tolist([
+    for pair in setproduct(local.regions, local.regions) : tolist(pair)
+    if index(local.regions, pair[0]) < index(local.regions, pair[1])
+  ])
+
+  raw_pairs = var.topology == "hub_and_spoke" ? local.hub_pairs : local.mesh_pairs
 
   pairs = {
     for p in local.raw_pairs :
