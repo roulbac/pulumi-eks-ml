@@ -22,22 +22,22 @@ all of them.
 
 ## Testing
 
-Unit tests (`tests/`) cover the pair-generation logic offline against a mocked
-provider — pair counts per topology, the absence of spoke-to-spoke links, and
-key ordering.
+Both suites run against MiniStack only; no other emulator is used anywhere in
+this repository's Terraform tests.
 
-There is deliberately **no MiniStack integration suite for this module.** The
-emulator's EC2 surface does not implement `ModifyVpcPeeringConnectionOptions`,
-and its peering teardown is incomplete, so a real apply cannot round-trip.
-LocalStack has the same gap. What the emulator *can* do — create the VPCs and
-the peering connections themselves — was verified during development, but a
-suite that cannot destroy what it creates is not worth keeping green.
+- `tests/` — offline, mocked provider. Pair counts per topology, the absence of
+  spoke-to-spoke links, and key ordering.
+- `tests-integration/` — real applies against MiniStack. Builds three VPCs in
+  three regions from the sibling `vpc` module, then peers them hub-and-spoke,
+  which also exercises MiniStack's per-region isolation.
 
-Peering is therefore covered by the unit tests plus a real apply of
-`examples/multi-region` against AWS.
+### Known MiniStack gap
 
-## Emulator-facing flag
+MiniStack does not implement the `ModifyVpcPeeringConnectionOptions` EC2
+action, so `enable_remote_dns_resolution` is set to `false` in the integration
+suite. Everything else applies for real — the peering connections themselves
+and both directions of routing. Production callers leave the flag at its
+default of `true`.
 
-`enable_remote_dns_resolution` (default `true`) exists partly for this reason.
-Leave it on for real AWS; turn it off if you ever point this module at an
-emulator that supports the rest of peering but not the options call.
+Cross-VPC DNS resolution is therefore the one behaviour here the emulator
+cannot cover; it needs a real apply of `examples/multi-region` to verify.

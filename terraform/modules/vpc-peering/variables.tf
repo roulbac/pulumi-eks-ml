@@ -61,9 +61,9 @@ variable "enable_remote_dns_resolution" {
     requester and accepter sides. Matches the Pulumi behaviour and should stay
     on against real AWS.
 
-    Turn it off when running against a local AWS emulator: both MiniStack and
-    LocalStack lack the ModifyVpcPeeringConnectionOptions EC2 action, so the
-    connections and routes apply cleanly but setting these options fails.
+    Turn it off when running against a local AWS emulator. MiniStack does not
+    implement the ModifyVpcPeeringConnectionOptions EC2 action, so the peering
+    connections and their routes apply cleanly but setting these options fails.
   EOT
   type        = bool
   default     = true

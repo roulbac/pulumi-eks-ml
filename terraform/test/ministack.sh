@@ -3,9 +3,11 @@
 # Start / stop / reset a MiniStack container for Terraform integration tests.
 #
 # MiniStack is an MIT-licensed local AWS emulator that exposes every service on
-# a single endpoint (default :4566). It is used here instead of LocalStack
-# because the services this project needs most — EKS, EFS, Route53, Cognito —
-# are not in LocalStack's free tier.
+# a single endpoint (default :4566). It is free with no sign-up, no API key and
+# no license token, and it covers the services this project needs — EC2, IAM,
+# STS, EKS, EFS, Route53, Cognito, SecretsManager and CloudWatch Logs.
+#
+# This is the only emulator the Terraform suites run against.
 #
 # Usage:
 #   ./ministack.sh up      # start and block until healthy

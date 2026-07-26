@@ -117,9 +117,9 @@ jobs:
         working-directory: ${{ matrix.module }}
         run: terraform test -no-color -verbose
 
-  # Real applies against MiniStack, an MIT-licensed local AWS emulator.
-  # Chosen over LocalStack because the services this project leans on — EKS,
-  # EFS, Route53, Cognito — are not in LocalStack's free tier.
+  # Real applies against MiniStack, an MIT-licensed local AWS emulator that is
+  # free with no sign-up or license token, and covers everything this project
+  # needs including EKS, EFS, Route53 and Cognito.
   integration:
     name: integration (${{ matrix.module }})
     needs: [discover, unit]
