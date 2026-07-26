@@ -41,8 +41,14 @@ module "eks" {
   enable_irsa = true
 
   # CoreDNS is deliberately excluded here — see aws_eks_addon.coredns below.
-  bootstrap_self_managed_addons = false
-
+  #
+  # The Pulumi original also sets bootstrap_self_managed_addons=false so that
+  # nothing installs CoreDNS ahead of the Fargate profile. The v21 module does
+  # not expose that argument, so EKS bootstraps self-managed copies at creation
+  # and the managed addons below adopt them via OVERWRITE. The difference is a
+  # brief window where the self-managed CoreDNS pods sit Pending for want of
+  # capacity; they are replaced once the Fargate profile and the managed addon
+  # land.
   addons = {
     kube-proxy = {
       addon_version               = var.kube_proxy_version
