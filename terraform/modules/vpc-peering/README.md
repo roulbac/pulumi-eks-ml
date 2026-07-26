@@ -31,13 +31,21 @@ this repository's Terraform tests.
   three regions from the sibling `vpc` module, then peers them hub-and-spoke,
   which also exercises MiniStack's per-region isolation.
 
-### Known MiniStack gap
+### Known MiniStack gaps
 
-MiniStack does not implement the `ModifyVpcPeeringConnectionOptions` EC2
-action, so `enable_remote_dns_resolution` is set to `false` in the integration
-suite. Everything else applies for real — the peering connections themselves
-and both directions of routing. Production callers leave the flag at its
-default of `true`.
+Two specific EC2 actions are missing. Both are narrow — peering itself works,
+and the emulator creates the VPCs, route tables and peering connections
+correctly.
 
-Cross-VPC DNS resolution is therefore the one behaviour here the emulator
-cannot cover; it needs a real apply of `examples/multi-region` to verify.
+| Gap | Effect | Flag used in the suite |
+|---|---|---|
+| No `ModifyVpcPeeringConnectionOptions` action | Cross-VPC DNS resolution cannot be set | `enable_remote_dns_resolution = false` |
+| `CreateRoute` cannot resolve a route table in another region | Cross-region routes fail with `InvalidRouteTableID.NotFound`, despite the route table existing | `create_routes = false` |
+
+Both flags default to `true` and should stay that way for real AWS. They are
+genuine knobs, not test scaffolding — `create_routes` is also what you want
+when a transit gateway owns the route tables.
+
+So the integration suite covers pair generation, the cross-region connections
+and the accepter handshake. Cross-VPC DNS and the peering routes need a real
+apply of `examples/multi-region` to verify.

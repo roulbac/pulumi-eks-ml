@@ -69,6 +69,19 @@ variable "enable_remote_dns_resolution" {
   default     = true
 }
 
+variable "create_routes" {
+  description = <<-EOT
+    Create the two routes per pair that send each VPC's private subnets to the
+    other over the peering connection. Leave this on for the normal case.
+
+    Turn it off when routing is managed elsewhere — for example a transit
+    gateway owning the route tables — or when running against MiniStack, whose
+    CreateRoute cannot resolve a route table that lives in another region.
+  EOT
+  type        = bool
+  default     = true
+}
+
 variable "tags" {
   description = "Tags applied to peering resources."
   type        = map(string)

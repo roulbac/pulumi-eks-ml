@@ -95,7 +95,7 @@ resource "aws_vpc_peering_connection_options" "requester" {
 # ---------------------------------------------------------------------------
 
 resource "aws_route" "a_to_b" {
-  for_each = local.pairs
+  for_each = var.create_routes ? local.pairs : {}
 
   region = each.value.region_a
 
@@ -107,7 +107,7 @@ resource "aws_route" "a_to_b" {
 }
 
 resource "aws_route" "b_to_a" {
-  for_each = local.pairs
+  for_each = var.create_routes ? local.pairs : {}
 
   region = each.value.region_b
 

@@ -76,11 +76,19 @@ run "hub_and_spoke_mesh" {
     topology = "hub_and_spoke"
     hub      = "us-east-1"
 
-    # MiniStack has no ModifyVpcPeeringConnectionOptions EC2 action. Everything
-    # else in this module — the connections themselves and both directions of
-    # routing — applies for real. Production callers leave this at its default
-    # of true.
+    # Two MiniStack gaps, both scoped to specific EC2 actions rather than to
+    # peering as a whole:
+    #
+    #   - no ModifyVpcPeeringConnectionOptions action at all
+    #   - CreateRoute cannot resolve a route table in another region, so the
+    #     cross-region routes fail with InvalidRouteTableID.NotFound even
+    #     though the route tables were created successfully
+    #
+    # What remains under test is the part of this module that actually holds
+    # logic: pair generation, the cross-region connections themselves, and the
+    # accepter handshake. Production callers leave both flags at true.
     enable_remote_dns_resolution = false
+    create_routes                = false
 
     vpcs = {
       "us-east-1" = {
