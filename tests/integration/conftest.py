@@ -21,7 +21,11 @@ PULUMI_PROJECT_NAME = "pulumi-eks-ml-integration-tests"
 
 @pytest.fixture(scope="session", autouse=True)
 def localstack_container() -> LocalStackContainer:
-    with LocalStackContainer("localstack/localstack:latest").with_services(
+    # Pinned to the last community image published before LocalStack merged
+    # community/pro into a single image requiring LOCALSTACK_AUTH_TOKEN
+    # (2026-03-23). `latest` now fails with "valid license" errors in CI.
+    # See https://blog.localstack.cloud/localstack-single-image-next-steps/
+    with LocalStackContainer("localstack/localstack:4.4.0").with_services(
         "ec2", "iam", "sts"
     ) as localstack:
         yield localstack
